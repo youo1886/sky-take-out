@@ -11,3 +11,7 @@ sky:
     access-key-id: LTAI5t6pA2pCGAAg5v9PyM8X
     access-key-secret: cJ9xPet2kf4zXIFyjI3rYfVt0VOkuQ
     bucket-name: sky-youo
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
