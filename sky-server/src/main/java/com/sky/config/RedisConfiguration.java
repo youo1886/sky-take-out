@@ -1,5 +1,12 @@
 package com.sky.config;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,6 +14,9 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Configuration
 @Slf4j
@@ -16,16 +26,32 @@ public class RedisConfiguration {
     public RedisTemplate redisTemplate(RedisConnectionFactory redisConnectionFactory){
         log.info("开始创建RedisTemplate对象...");
         RedisTemplate redisTemplate = new RedisTemplate();
+        // ========== 自己构造ObjectMapper，注册时间模块 ==========
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+        objectMapper.activateDefaultTyping(LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL);
+
+        JavaTimeModule javaTimeModule = new JavaTimeModule();
+        javaTimeModule.addSerializer(LocalDateTime.class,
+                new LocalDateTimeSerializer(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        javaTimeModule.addDeserializer(LocalDateTime.class,
+                new LocalDateTimeDeserializer(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        objectMapper.registerModule(javaTimeModule);
+
+        // 用上面配置好的 objectMapper 构造序列化器，否则时间模块不会生效
+        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
+
         //设置连接工厂
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         //设置redis key的序列化器
         redisTemplate.setKeySerializer(new StringRedisSerializer());
-        //设置redis value的序列化器（使用JSON序列化，支持Integer/对象等任意类型）
-        redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer());
+        //设置redis value的序列化器（使用JSON序列化，支持LocalDateTime等时间类型）
+        redisTemplate.setValueSerializer(jsonSerializer);
         //设置hash key的序列化器
         redisTemplate.setHashKeySerializer(new StringRedisSerializer());
-        //设置hash value的序列化器（使用JSON序列化，支持任意类型）
-        redisTemplate.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
+        //设置hash value的序列化器（使用JSON序列化，支持LocalDateTime等时间类型）
+        redisTemplate.setHashValueSerializer(jsonSerializer);
         return redisTemplate;
     }
 }
